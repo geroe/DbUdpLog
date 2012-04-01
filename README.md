@@ -12,15 +12,43 @@ I borrowed the idea of using a UDP server to do this from [statsd](https://githu
 ## Usage
 
 ### Configuration
-At the top of the logServer.js file, a config object holds all relevant configuration.
-It should be quite self-explanatory and is well documented.
+Just copy the config_example.json file to config.json and adapt to your needs.
 
-This will probably change in the future to get the config from an INI file.
+	$ cp config_example.json config.json
+	$ vi config.json //or use your editor of choice
+
+Attention! JSON.parse() is very **strict**.
+
+Unfortunately, .json files are not allowed to contain comments, so here is the documentation:
+
+#### log udp server config
+
+* logListen: should we listen to incoming logs?
+* logPort: which port to listen to for log entries
+* logSingleQueries: should single queries be logged as well?
+* logAggregatedCollection: where to store accumulated query info
+* logSingleCollection: where to store single query info
+
+#### control web server config
+
+* controlPort: which port to listen to for the control server
+
+#### mongodb config
+
+***TODO*** check support for mongo clusters
+
+* mongoHost: Hostname or IP address
+* mongoPort: port of the MongoDB server
+* mongoDb: name of the Database
+
+#### global config
+
+* verbosityLevel: 0 = important & fatal error, 3 = errors, 5 = infos, 10 = show all
 
 ### Server
 Simply start the server:
 
-    $ node logServer.js
+	$ node logServer.js
 
 From that point on, you have actually started 2 servers:
 
@@ -48,18 +76,18 @@ The software itself does not contain a client. I added a small example in /examp
 Here is a PHP block to understand the concept:
 
 
-    <?php
-        ...
-        $start = microtime(true);
-        mysql_query($query);
-        $end = microtime(true);
+	<?php
+		...
+		$start = microtime(true);
+		mysql_query($query);
+		$end = microtime(true);
 
-        $sock = fsockopen("udp://127.0.0.1", 13306, $errno, $errstr);
-        if ($sock) {
-            fwrite(($end-$start).'|'.$query);
-            fclose($sock);
-        }
-        ...
+		$sock = fsockopen("udp://127.0.0.1", 13306, $errno, $errstr);
+		if ($sock) {
+			fwrite(($end-$start).'|'.$query);
+			fclose($sock);
+		}
+	    ...
 
 As you can see, errors on the PHP side are silently ignored. It should just send the query if possible.
 I just want logs, but not to jeopardize the application itself :)
@@ -81,7 +109,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-[http://www.apache.org/licenses/LICENSE-2.0](http://www.apache.org/licenses/LICENSE-2.0)
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,

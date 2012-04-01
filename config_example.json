@@ -1,0 +1,15 @@
+{
+	"logListen":true,
+	"logPort":13306,
+	"logSingleQueries":false,
+	"logAggregatedCollection":"aggregated",
+	"logSingleCollection":"single",
+
+	"controlPort":8080,
+
+	"mongoHost":"localhost",
+	"mongoPort":27017,
+	"mongoDb":"querylogger",
+
+	"verbosityLevel":5
+}

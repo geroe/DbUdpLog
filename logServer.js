@@ -20,27 +20,12 @@
  */
 
 //config
-//@todo load initial config from ini file
-var config = {
-    //log udp server config
-    logListen: true, //should we listen to incoming logs?
-    logPort: 13306, //which port to listen to for log entries
-    logSingleQueries: false, //should single queries be logged as well?
-    logAggregatedCollection: 'aggregated', //where to log accumulated query info
-    logSingleCollection: 'single', //where to log single query info
-
-    //control web server config
-    controlPort: 8080, //which port to listen to for the control server
-
-    //mongodb config
-    //@todo check support for mongo clusters
-    mongoHost: 'localhost',
-    mongoPort: 27017,
-    mongoDb: 'querylogger',
-
-    //global config
-    verbosityLevel: 5 //0 = important & fatal error, 3 = errors, 5 = infos, 10 = show all
-};
+try {
+    var config = JSON.parse(require('fs').readFileSync('./config.json','utf-8'));
+} catch (e) {
+    console.log('Could not read config file: '+ e.toString());
+    process.exit(1);
+}
 
 //stats
 var stats = {
