@@ -153,7 +153,6 @@ var controlServer = require('http').createServer(function(req, resp) {
             outp('Changing verbosity level to '+lvl+' as requested by '+req.connection.remoteAddress,0); //this should always be logged
             resp.writeHead(200, {'ContentType' : 'application/json'});
             ret = 'Verbosity level changed to '+lvl;
-            delete lvl;
             break;
         //should single queries be logged as well?
         //ATTENTION! be careful - for high QPS you may clog everything!!!
@@ -182,11 +181,9 @@ var controlServer = require('http').createServer(function(req, resp) {
                     } else {
                         resp.writeHead(200, {'ContentType' : 'application/json'});
                         resp.write(JSON.stringify(docs));
-                        delete docs;
                         resp.end();
                         outp('Longest queries as requested by '+req.connection.remoteAddress,5);
                     }
-                    delete collection;
                 });
             });
             break;
@@ -209,12 +206,9 @@ var controlServer = require('http').createServer(function(req, resp) {
                     } else {
                         resp.writeHead(200, {'ContentType' : 'application/json'});
                         resp.write(JSON.stringify(docs));
-                        delete docs;
                         resp.end();
                         outp('Most often called queries as requested by '+req.connection.remoteAddress,5);
                     }
-
-                    delete collection;
                 });
             });
             break;
@@ -253,8 +247,6 @@ var controlServer = require('http').createServer(function(req, resp) {
                         resp.end();
                         outp('calcavg as requested by '+req.connection.remoteAddress,3);
                     }
-
-                    delete collection;
                 });
             });
             break;*/
@@ -277,12 +269,9 @@ var controlServer = require('http').createServer(function(req, resp) {
                     } else {
                         resp.writeHead(200, {'ContentType' : 'application/json'});
                         resp.write(JSON.stringify(docs));
-                        delete docs;
                         resp.end();
                         outp('Worst queries as requested by '+req.connection.remoteAddress,5);
                     }
-
-                    delete aggregated;
                 });
             });
             break;
@@ -296,7 +285,6 @@ var controlServer = require('http').createServer(function(req, resp) {
     //use ret and jsonify it
     if (doOutput) {
         resp.write(JSON.stringify(ret));
-        delete ret;
         resp.end();
     }
 }).listen(config.controlPort);
@@ -384,7 +372,6 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
                 outp(err.toString(),3);
             }
         });
-        delete single;
     }
 
     //update stats
