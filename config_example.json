@@ -11,5 +11,10 @@
 	"mongoPort":27017,
 	"mongoDb":"querylogger",
 
-	"verbosityLevel":5
+	"verbosityLevel":5,
+	"customPrototypers": [{
+		"search": "DO NOT KEEP ON COPY FROM EXAMPLE!!! RegExp object definition like: user_table_(\\d)*",
+		"options": "ig",
+		"replace": "user_table_?"
+	}]
 }

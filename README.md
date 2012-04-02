@@ -44,6 +44,20 @@ Unfortunately, .json files are not allowed to contain comments, so here is the d
 #### global config
 
 * verbosityLevel: 0 = important & fatal error, 3 = errors, 5 = infos, 10 = show all
+* customPrototypers:
+  An array of objects to perform additional prototyping after the standard prototypers are already executed.
+  Please use [RegExp](https://developer.mozilla.org/en/Core%5FJavaScript%5F1.5%5FReference/Global%5FObjects/RegExp) syntax.
+  Example:
+
+
+	...,
+	"customPrototypers": [{
+		"search": "user_table_(\\d)*",
+		"options": "ig",
+		"replace": "user_table_?"
+	},{
+		...
+	}]
 
 ### Server
 Simply start the server:

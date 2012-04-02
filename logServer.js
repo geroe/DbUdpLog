@@ -300,7 +300,7 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
     if (!config.logListen) { return; }
 
     //analyze the query an get the analyzing object
-    var analyze = require('./lib/QueryPrototyper.js').proto(msg);
+    var analyze = require('./lib/QueryPrototyper.js').proto(config,msg);
     outp('['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);
 
     //store object in mongo
