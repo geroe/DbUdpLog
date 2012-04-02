@@ -7,8 +7,10 @@
 
 //config
 try {
-    console.dir(JSON.parse(require('fs').readFileSync('../config.json','utf-8')));
+    JSON.parse(require('fs').readFileSync('../config.json','utf-8'));
 } catch (e) {
     console.log('Could not read config file: '+ e.toString());
     process.exit(1);
 }
+
+console.log('YOUR CONFIG IS OK :)');
