@@ -13,7 +13,7 @@ try {
     process.exit(1);
 }
 try {
-    var msg = '0.123|CREATE TABLE temp_123_12345 whatever';
+    var msg = '0.123|/* comment 1 */ CREATE TABLE /* comment 2 */ temp_123_12345 whatever';
     console.dir(require('../lib/QueryPrototyper.js').proto(config,msg));
 } catch (e) {
     console.log(e.toString());
