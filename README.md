@@ -32,6 +32,7 @@ Unfortunately, .json files are not allowed to contain comments, so here is the d
 #### control web server config
 
 * controlPort: which port to listen to for the control server
+* controlAuth: object with username and password for the control server. if both are empty, no authentication is needed
 
 #### mongodb config
 
@@ -81,7 +82,7 @@ The Control server accepts the following commands:
 * most      - get the queries that were called most often
 * worst     - get the queries with the longest average execution time
 
-**Attention! Right now there are no security features present!
+**Attention! Only HTTP basic auth with a cleartext password on the server is implemented.
 Please make sure that you configure your firewall that only trusted parties have access to the Control server.**
 
 ### Client

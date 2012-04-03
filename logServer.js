@@ -68,6 +68,17 @@ mongoDb.open(function(error,db) {
  */
 var controlServer = require('http').createServer(function(req, resp) {
 
+    //get the username and password
+    var authHeader = req.headers['authorization']||'';
+    var auth = new Buffer(authHeader.split(/\s+/).pop()||'', 'base64').toString().split(/:/);
+
+    //check against config object
+    if (auth[0]!=config.controlAuth.username || auth[1]!=config.controlAuth.password) {
+        resp.writeHead(401,{'WWW-Authenticate':'Basic realm="DbUdpLog"'});
+        resp.end();
+        return;
+    }
+
     //extract the url from the request object
     var reqUrl = require('url').parse(req.url,true);
 
@@ -101,6 +112,7 @@ var controlServer = require('http').createServer(function(req, resp) {
             outp('Config status requested by '+req.connection.remoteAddress,5);
             resp.writeHead(200, {'ContentType' : 'application/json'});
             ret = config;
+            ret.controlAuth = 'HIDDEN'; //do NOT display auth params
             break;
         //get the stats object and some os infos
         case 'stats':

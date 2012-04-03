@@ -6,6 +6,10 @@
 	"logSingleCollection":"single",
 
 	"controlPort":8080,
+	"controlAuth": {
+		"username": "",
+		"password": ""
+	},
 
 	"mongoHost":"localhost",
 	"mongoPort":27017,
