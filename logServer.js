@@ -29,9 +29,6 @@ try {
     console.log('Usage: node logServer.js [configfile.json]');
 }
 
-console.log(configFile);
-process.exit(0);
-
 //config
 try {
     var config = JSON.parse(require('fs').readFileSync(configFile,'utf-8'));
