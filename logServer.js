@@ -347,6 +347,7 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
         }, function(err,doc) {
             if (err) {
                 outp(err.toString(),3);
+                return;
             }
 
             //calc aggregation
