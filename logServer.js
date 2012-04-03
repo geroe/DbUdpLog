@@ -84,6 +84,7 @@ var controlServer = require('http').createServer(function(req, resp) {
 
     //check against config object
     if (auth[0]!=config.controlAuth.username || auth[1]!=config.controlAuth.password) {
+        outp('Unauthorized request by '+req.connection.remoteAddress,3);
         resp.writeHead(401,{'WWW-Authenticate':'Basic realm="DbUdpLog"'});
         resp.end();
         return;
