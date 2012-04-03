@@ -2,7 +2,7 @@
 
 LOGFILE=DbUdpLog.log
 
-/usr/bin/env node logServer.js >> $LOGFILE 2>&1 &
+/usr/bin/env node logServer.js $1 >> $LOGFILE 2>&1 &
 
 echo "Started DbUdpLog in daemon mode. Please find the log @ $LOGFILE"
 echo "To stop the server you have to kill it manually."
