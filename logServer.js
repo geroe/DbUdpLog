@@ -19,9 +19,22 @@
  * limitations under the License.
  */
 
+try {
+    var configFile = process.argv.pop();
+    if (!configFile.search(/\.json$/)) {
+        configFile = './config.json';
+    }
+} catch (e) {
+    console.log('Could not process call.');
+    console.log('Usage: node logServer.js [configfile.json]');
+}
+
+console.log(configFile);
+process.exit(0);
+
 //config
 try {
-    var config = JSON.parse(require('fs').readFileSync('./config.json','utf-8'));
+    var config = JSON.parse(require('fs').readFileSync(configFile,'utf-8'));
 } catch (e) {
     console.log('Could not read config file: '+ e.toString());
     process.exit(1);

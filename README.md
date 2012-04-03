@@ -12,7 +12,9 @@ I borrowed the idea of using a UDP server to do this from [statsd](https://githu
 ## Usage
 
 ### Configuration
-Just copy the config_example.json file to config.json and adapt to your needs.
+Just copy the config_example.json file to config.json and adapt to your needs. It is also possible to
+have multiple config files. config.json is the default. If you need to start the server with an alternative
+cofig, just add the config file as a command line paramter.
 
 	$ cp config_example.json config.json
 	$ vi config.json //or use your editor of choice
@@ -63,7 +65,9 @@ Unfortunately, .json files are not allowed to contain comments, so here is the d
 ### Server
 Simply start the server:
 
-	$ node logServer.js
+	$ node logServer.js [configfile.json]
+
+Naming the config file is optional. The default is: ./config.json
 
 From that point on, you have actually started 2 servers:
 
