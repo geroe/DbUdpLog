@@ -130,6 +130,7 @@ var controlServer = require('http').createServer(function(req, resp) {
             resp.writeHead(200, {'ContentType' : 'application/json'});
             var os = require('os');
             ret = {
+                'pid': process.pid,
                 'loadavg': os.loadavg(),
                 'freemem': os.freemem(),
                 'local': stats
