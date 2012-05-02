@@ -31,6 +31,7 @@ try {
 
 //config
 try {
+    console.log('Parsing config file '+configFile);
     var config = JSON.parse(require('fs').readFileSync(configFile,'utf-8'));
 } catch (e) {
     console.log('Could not read config file: '+ e.toString());
