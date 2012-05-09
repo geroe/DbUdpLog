@@ -90,7 +90,7 @@ var controlServer = require('http').createServer(function(req, resp) {
         resp.end();
         return;
     }
-
+    
     //extract the url from the request object
     var reqUrl = require('url').parse(req.url,true);
 
@@ -327,14 +327,27 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
     //analyze the query an get the analyzing object
     var analyze = require('./lib/QueryPrototyper.js').proto(config,msg);
     outp('['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);
-
+    
+    //check if we want to store this object in mongo at all based on the minimum duration setting?
+    if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan){
+        return;
+    }
+    
     //store object in mongo
-    mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
+    mongoDb.collection(config.logAggregatedCollection,function(error, collection) {
         if (error) {
             outp(error.toString(),1);
             return;
         }
-
+        
+        //make sure there is an index on the hash field
+        collection.ensureIndex({hash:1}, {unique: true}, function(indexCreationError, newIndexName){});
+        
+        //also need indexes for better and faster sorting
+        collection.ensureIndex({totaltime:-1}, function(indexCreationError, newIndexName){});
+        collection.ensureIndex({counter:-1}, function(indexCreationError, newIndexName){});
+        collection.ensureIndex({avg:-1}, function(indexCreationError, newIndexName){});
+        
         //upsert data
         collection.findAndModify({
             hash: analyze.hash
