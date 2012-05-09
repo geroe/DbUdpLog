@@ -1,6 +1,7 @@
 {
 	"logListen":true,
 	"logPort":13306,
+	"logQueriesWithDurationLongerThan":0,
 	"logSingleQueries":false,
 	"logAggregatedCollection":"aggregated",
 	"logSingleCollection":"single",
