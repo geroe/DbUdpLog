@@ -80,6 +80,7 @@ The Control server accepts the following commands:
 * stats     - get system & load stats
 * start     - set the server to process incoming logs
 * stop      - set the server to **NOT** process incoming logs
+* reset     - full database reset (delete all data and start fresh)
 * verbose   - set the verbosity level with ?level=[0-10]
 * logSingle - tells the server to log single queries with ?log=[true|false]
 * longest   - get the longest queries in terms of total time needed
