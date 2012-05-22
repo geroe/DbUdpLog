@@ -152,18 +152,6 @@ var controlServer = require('http').createServer(function(req, resp) {
             resp.writeHead(200, {'ContentType' : 'application/json'});
             ret = 'Stopping to listen for logs';
             break;
-        //reset the logging database (for whatever reasons)
-        case 'reset':
-            outp('Full Database Reset requested by '+req.connection.remoteAddress,3);
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            ret = 'Reset database, dropped collections: '+config.logAggregatedCollection+', '+config.logSingleCollection;
-            mongoDb.collection(config.logAggregatedCollection, function(err, collection){
-                collection.remove({}, function(err, removed){});
-            });
-            mongoDb.collection(config.logSingleCollection, function(err, collection){
-                collection.remove({}, function(err, removed){});
-            });
-            break;
         //set verbosity level
         case 'verbose':
             var lvl = parseInt(reqUrl.query.level);
@@ -301,7 +289,7 @@ var controlServer = require('http').createServer(function(req, resp) {
         default:
             outp(reqUrl.pathname+' requested but not found by '+req.connection.remoteAddress,1);
             resp.writeHead(404, {'ContentType' : 'application/json'});
-            ret = reqUrl.pathname+' is not known. Available view commands are: longest, most and worst';
+            ret = reqUrl.pathname+' is not known.';
     }
 
     //use ret and jsonify it
