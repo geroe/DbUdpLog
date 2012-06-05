@@ -20,35 +20,35 @@
  */
 
 try {
-    var configFile = process.argv.pop();
-    if (!configFile.search(/\.json$/)) {
-        configFile = './config.json';
-    }
+	var configFile = process.argv.pop();
+	if (!configFile.search(/\.json$/)) {
+		configFile = './config.json';
+	}
 } catch (e) {
-    console.log('Could not process call.');
-    console.log('Usage: node logServer.js [configfile.json]');
+	console.log('Could not process call.');
+	console.log('Usage: node logServer.js [configfile.json]');
 }
 
 //config
 try {
-    console.log('Parsing config file '+configFile);
-    var config = JSON.parse(require('fs').readFileSync(configFile,'utf-8'));
+	console.log('Parsing config file '+configFile);
+	var config = JSON.parse(require('fs').readFileSync(configFile,'utf-8'));
 } catch (e) {
-    console.log('Could not read config file: '+ e.toString());
-    process.exit(1);
+	console.log('Could not read config file: '+ e.toString());
+	process.exit(1);
 }
 
 //stats
 var stats = {
-    startupTime: new Date(),
-    processed: 0
+	startupTime: new Date(),
+	processed: 0
 };
 
 //helper function to manage logs in respect to verbosity lvl
 var outp = function(msg,lvl) {
-    if (lvl<=config.verbosityLevel) {
-        console.log('[%s] %s',new Date().toISOString(), msg);
-    }
+	if (lvl<=config.verbosityLevel) {
+		console.log('[%s] %s',new Date().toISOString(), msg);
+	}
 };
 
 //do the mongo magic
@@ -58,10 +58,10 @@ var mongoDb = new mongoLib.Db(config.mongoDb, mongoServer, {});
 
 //check connection
 mongoDb.open(function(error,db) {
-    if (error) {
-        outp(error.toString(),0);
-        process.exit(1);
-    }
+	if (error) {
+		outp(error.toString(),0);
+		process.exit(1);
+	}
 });
 
 /**
@@ -79,236 +79,236 @@ mongoDb.open(function(error,db) {
  */
 var controlServer = require('http').createServer(function(req, resp) {
 
-    //get the username and password
-    var authHeader = req.headers['authorization']||'';
-    var auth = new Buffer(authHeader.split(/\s+/).pop()||'', 'base64').toString().split(/:/);
+	//get the username and password
+	var authHeader = req.headers['authorization']||'';
+	var auth = new Buffer(authHeader.split(/\s+/).pop()||'', 'base64').toString().split(/:/);
 
-    //check against config object
+	//check against config object
     if (auth[0]!=config.controlAuth.username || auth[1]!=config.controlAuth.password) {
-        outp('Unauthorized request by '+req.connection.remoteAddress,3);
-        resp.writeHead(401,{'WWW-Authenticate':'Basic realm="DbUdpLog"'});
-        resp.end();
-        return;
-    }
-    
-    //extract the url from the request object
-    var reqUrl = require('url').parse(req.url,true);
-
-    //the return object
-    var ret;
-
-    //should the output be generated a t the bottom
-    //@todo there should be a better way, but it's ok for now.
-    var doOutput = true;
-
-    //always get limit & skip from GET, even though it is not used for all commands.
-    var limit = parseInt(reqUrl.query.limit);
-    if (isNaN(limit)) {
-        //default
-        limit = 10;
+	 outp('Unauthorized request by '+req.connection.remoteAddress,3);
+	 resp.writeHead(401,{'WWW-Authenticate':'Basic realm="DbUdpLog"'});
+	 resp.end();
+	 return;
     }
 
-    var skip = parseInt(reqUrl.query.skip);
-    if (isNaN(skip)) {
-        //default
-        skip = 0;
-    }
+	//extract the url from the request object
+	var reqUrl = require('url').parse(req.url,true);
 
-    //dispatch and get rid of leading /
-    //as long as the commands are that simple, this approach is tolerable,
-    //as soon as we do more this needs to be refactored!
-    //@todo refactor
-    switch(reqUrl.pathname.substring(1)) {
-        //get the config object
-        case 'config':
-            outp('Config status requested by '+req.connection.remoteAddress,5);
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            ret = config;
-            ret.controlAuth = 'HIDDEN'; //do NOT display auth params
-            break;
-        //get the stats object and some os infos
-        case 'stats':
-            outp('Stats requested by '+req.connection.remoteAddress,5);
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            var os = require('os');
-            ret = {
-                'pid': process.pid,
-                'loadavg': os.loadavg(),
-                'freemem': os.freemem(),
-                'local': stats
-            };
-            break;
-        //start the logging again - even if it is already running
-        case 'start':
-            outp('Start requested by '+req.connection.remoteAddress,3);
-            config.logListen = true;
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            ret = 'Continuing to listen for logs on port '+config.logPort;
-            break;
-        //stop the logging - even if it is already stopped
-        case 'stop':
-            outp('Stop requested by '+req.connection.remoteAddress,3);
-            config.logListen = false;
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            ret = 'Stopping to listen for logs';
-            break;
-        //reset the logging database (for whatever reasons)
-        case 'reset':
-            outp('Full Database Reset requested by '+req.connection.remoteAddress,3);
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            ret = 'Reset database, dropped collections: '+config.logAggregatedCollection+', '+config.logSingleCollection;
-            mongoDb.collection(config.logAggregatedCollection, function(err, collection){
-                collection.remove({}, function(err, removed){});
-            });
-            mongoDb.collection(config.logSingleCollection, function(err, collection){
-                collection.remove({}, function(err, removed){});
-            });
-            break;
-        //set verbosity level
-        case 'verbose':
-            var lvl = parseInt(reqUrl.query.level);
-            if (isNaN(lvl)) {
-                //if something went wrong, just keep the current value
-                lvl = config.verbosityLevel;
-            }
-            config.verbosityLevel = lvl;
-            outp('Changing verbosity level to '+lvl+' as requested by '+req.connection.remoteAddress,0); //this should always be logged
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            ret = 'Verbosity level changed to '+lvl;
-            break;
-        //should single queries be logged as well?
-        //ATTENTION! be careful - for high QPS you may clog everything!!!
-        case 'logSingle':
-            config.logSingleQueries = (reqUrl.query.log=='true' ? true : false);
-            outp('Setting logSingleQueries to '+(config.logSingleQueries ? 'TRUE' : 'FALSE')+' as requested by '+req.connection.remoteAddress,0); //this should always be logged
-            resp.writeHead(200, {'ContentType' : 'application/json'});
-            ret = 'logSingleQueries set to '+(config.logSingleQueries ? 'TRUE' : 'FALSE');
-            break;
-        //get top report on totaltime = longest overall time
-        //users limit & skip
-        case 'longest':
-            doOutput = false;
-            mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
-                if (error) {
-                    outp(error.toString(),1);
-                    return;
-                }
+	//the return object
+	var ret;
 
-                collection.find({}).sort({totaltime: -1}).skip(skip).limit(limit).toArray(function(err,docs) {
-                    if (err) {
-                        resp.writeHead(500, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify(err.toString()));
-                        resp.end();
-                        outp(err.toString(),3);
-                    } else {
-                        resp.writeHead(200, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify(docs));
-                        resp.end();
-                        outp('Longest queries as requested by '+req.connection.remoteAddress,5);
-                    }
-                });
-            });
-            break;
-        //get top report on counter = most often called
-        //users limit & skip
-        case 'most':
-            doOutput = false;
-            mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
-                if (error) {
-                    outp(error.toString(),1);
-                    return;
-                }
+	//should the output be generated a t the bottom
+	//@todo there should be a better way, but it's ok for now.
+	var doOutput = true;
 
-                collection.find({}).sort({counter: -1}).skip(skip).limit(limit).toArray(function(err,docs) {
-                    if (err) {
-                        resp.writeHead(500, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify(err.toString()));
-                        resp.end();
-                        outp(err.toString(),3);
-                    } else {
-                        resp.writeHead(200, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify(docs));
-                        resp.end();
-                        outp('Most often called queries as requested by '+req.connection.remoteAddress,5);
-                    }
-                });
-            });
-            break;
-        // i keep this as an example for map/reduce, but this not needed anymore
-        /*case 'calcavg':
-            doOutput = false;
-            mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
-                if (error) {
-                    outp(error.toString(),1);
-                    return;
-                }
+	//always get limit & skip from GET, even though it is not used for all commands.
+	var limit = parseInt(reqUrl.query.limit);
+	if (isNaN(limit)) {
+		//default
+		limit = 10;
+	}
 
-                var map = function() {
-                    emit(this._id, {hash: this.hash, totaltime: this.totaltime, counter: this.counter, avg: 0});
-                }
+	var skip = parseInt(reqUrl.query.skip);
+	if (isNaN(skip)) {
+		//default
+		skip = 0;
+	}
 
-                var reduce = function(key,values) {
-                    var result = {hash: key, totaltime: this.totaltime, counter: this.counter, avg: 0};
-                    return result;
-                }
+	//dispatch and get rid of leading /
+	//as long as the commands are that simple, this approach is tolerable,
+	//as soon as we do more this needs to be refactored!
+	//@todo refactor
+	switch(reqUrl.pathname.substring(1)) {
+		//get the config object
+		case 'config':
+			outp('Config status requested by '+req.connection.remoteAddress,5);
+			resp.writeHead(200, {'ContentType' : 'application/json'});
+			ret = config;
+			ret.controlAuth = 'HIDDEN'; //do NOT display auth params
+			break;
+		//get the stats object and some os infos
+		case 'stats':
+			outp('Stats requested by '+req.connection.remoteAddress,5);
+			resp.writeHead(200, {'ContentType' : 'application/json'});
+			var os = require('os');
+			ret = {
+				'pid': process.pid,
+				'loadavg': os.loadavg(),
+				'freemem': os.freemem(),
+				'local': stats
+			};
+			break;
+		//start the logging again - even if it is already running
+		case 'start':
+			outp('Start requested by '+req.connection.remoteAddress,3);
+			config.logListen = true;
+			resp.writeHead(200, {'ContentType' : 'application/json'});
+			ret = 'Continuing to listen for logs on port '+config.logPort;
+			break;
+		//stop the logging - even if it is already stopped
+		case 'stop':
+			outp('Stop requested by '+req.connection.remoteAddress,3);
+			config.logListen = false;
+			resp.writeHead(200, {'ContentType' : 'application/json'});
+			ret = 'Stopping to listen for logs';
+			break;
+		//reset the logging database (for whatever reasons)
+		case 'reset':
+			outp('Full Database Reset requested by '+req.connection.remoteAddress,3);
+			resp.writeHead(200, {'ContentType' : 'application/json'});
+			ret = 'Reset database, dropped collections: '+config.logAggregatedCollection+', '+config.logSingleCollection;
+			mongoDb.collection(config.logAggregatedCollection, function(err, collection){
+				collection.remove({}, function(err, removed){});
+			});
+			mongoDb.collection(config.logSingleCollection, function(err, collection){
+				collection.remove({}, function(err, removed){});
+			});
+			break;
+		//set verbosity level
+		case 'verbose':
+			var lvl = parseInt(reqUrl.query.level);
+			if (isNaN(lvl)) {
+				//if something went wrong, just keep the current value
+				lvl = config.verbosityLevel;
+			}
+			config.verbosityLevel = lvl;
+			outp('Changing verbosity level to '+lvl+' as requested by '+req.connection.remoteAddress,0); //this should always be logged
+			resp.writeHead(200, {'ContentType' : 'application/json'});
+			ret = 'Verbosity level changed to '+lvl;
+			break;
+		//should single queries be logged as well?
+		//ATTENTION! be careful - for high QPS you may clog everything!!!
+		case 'logSingle':
+			config.logSingleQueries = (reqUrl.query.log=='true' ? true : false);
+			outp('Setting logSingleQueries to '+(config.logSingleQueries ? 'TRUE' : 'FALSE')+' as requested by '+req.connection.remoteAddress,0); //this should always be logged
+			resp.writeHead(200, {'ContentType' : 'application/json'});
+			ret = 'logSingleQueries set to '+(config.logSingleQueries ? 'TRUE' : 'FALSE');
+			break;
+		//get top report on totaltime = longest overall time
+		//users limit & skip
+		case 'longest':
+			doOutput = false;
+			mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
+				if (error) {
+					outp(error.toString(),1);
+					return;
+				}
 
-                var finalize = function(key,value) {
-                    value.avg = value.totaltime/value.counter;
-                    return value;
-                }
+				collection.find({}).sort({totaltime: -1}).skip(skip).limit(limit).toArray(function(err,docs) {
+					if (err) {
+						resp.writeHead(500, {'ContentType' : 'application/json'});
+						resp.write(JSON.stringify(err.toString()));
+						resp.end();
+						outp(err.toString(),3);
+					} else {
+						resp.writeHead(200, {'ContentType' : 'application/json'});
+						resp.write(JSON.stringify(docs));
+						resp.end();
+						outp('Longest queries as requested by '+req.connection.remoteAddress,5);
+					}
+				});
+			});
+			break;
+		//get top report on counter = most often called
+		//users limit & skip
+		case 'most':
+			doOutput = false;
+			mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
+				if (error) {
+					outp(error.toString(),1);
+					return;
+				}
 
-                collection.mapReduce(map, reduce, {finalize: finalize, out: 'aggregated'},function(err,results,stats) {
-                    if (err) {
-                        resp.writeHead(500, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify(err.toString()));
-                        resp.end();
-                        outp(err.toString(),3);
-                    } else {
-                        resp.writeHead(200, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify('Done'));
-                        resp.end();
-                        outp('calcavg as requested by '+req.connection.remoteAddress,3);
-                    }
-                });
-            });
-            break;*/
-        //get top report on avg = highest avg time
-        //users limit & skip
-        case 'worst':
-            doOutput = false;
-            mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
-                if (error) {
-                    outp(error.toString(),1);
-                    return;
-                }
+				collection.find({}).sort({counter: -1}).skip(skip).limit(limit).toArray(function(err,docs) {
+					if (err) {
+						resp.writeHead(500, {'ContentType' : 'application/json'});
+						resp.write(JSON.stringify(err.toString()));
+						resp.end();
+						outp(err.toString(),3);
+					} else {
+						resp.writeHead(200, {'ContentType' : 'application/json'});
+						resp.write(JSON.stringify(docs));
+						resp.end();
+						outp('Most often called queries as requested by '+req.connection.remoteAddress,5);
+					}
+				});
+			});
+			break;
+		// i keep this as an example for map/reduce, but this not needed anymore
+		/*case 'calcavg':
+		 doOutput = false;
+		 mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
+		 if (error) {
+		 outp(error.toString(),1);
+		 return;
+		 }
 
-                collection.find({}).sort({avg: -1}).skip(skip).limit(limit).toArray(function(err,docs) {
-                    if (err) {
-                        resp.writeHead(500, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify(err.toString()));
-                        resp.end();
-                        outp(err.toString(),3);
-                    } else {
-                        resp.writeHead(200, {'ContentType' : 'application/json'});
-                        resp.write(JSON.stringify(docs));
-                        resp.end();
-                        outp('Worst queries as requested by '+req.connection.remoteAddress,5);
-                    }
-                });
-            });
-            break;
-        //default case = error
-        default:
-            outp(reqUrl.pathname+' requested but not found by '+req.connection.remoteAddress,1);
-            resp.writeHead(404, {'ContentType' : 'application/json'});
-            ret = reqUrl.pathname+' is not known. Available view commands are: longest, most and worst';
-    }
+		 var map = function() {
+		 emit(this._id, {hash: this.hash, totaltime: this.totaltime, counter: this.counter, avg: 0});
+		 }
 
-    //use ret and jsonify it
-    if (doOutput) {
-        resp.write(JSON.stringify(ret));
-        resp.end();
-    }
+		 var reduce = function(key,values) {
+		 var result = {hash: key, totaltime: this.totaltime, counter: this.counter, avg: 0};
+		 return result;
+		 }
+
+		 var finalize = function(key,value) {
+		 value.avg = value.totaltime/value.counter;
+		 return value;
+		 }
+
+		 collection.mapReduce(map, reduce, {finalize: finalize, out: 'aggregated'},function(err,results,stats) {
+		 if (err) {
+		 resp.writeHead(500, {'ContentType' : 'application/json'});
+		 resp.write(JSON.stringify(err.toString()));
+		 resp.end();
+		 outp(err.toString(),3);
+		 } else {
+		 resp.writeHead(200, {'ContentType' : 'application/json'});
+		 resp.write(JSON.stringify('Done'));
+		 resp.end();
+		 outp('calcavg as requested by '+req.connection.remoteAddress,3);
+		 }
+		 });
+		 });
+		 break;*/
+		//get top report on avg = highest avg time
+		//users limit & skip
+		case 'worst':
+			doOutput = false;
+			mongoDb.collection(config.logAggregatedCollection,function(error,collection) {
+				if (error) {
+					outp(error.toString(),1);
+					return;
+				}
+
+				collection.find({}).sort({avg: -1}).skip(skip).limit(limit).toArray(function(err,docs) {
+					if (err) {
+						resp.writeHead(500, {'ContentType' : 'application/json'});
+						resp.write(JSON.stringify(err.toString()));
+						resp.end();
+						outp(err.toString(),3);
+					} else {
+						resp.writeHead(200, {'ContentType' : 'application/json'});
+						resp.write(JSON.stringify(docs));
+						resp.end();
+						outp('Worst queries as requested by '+req.connection.remoteAddress,5);
+					}
+				});
+			});
+			break;
+		//default case = error
+		default:
+			outp(reqUrl.pathname+' requested but not found by '+req.connection.remoteAddress,1);
+			resp.writeHead(404, {'ContentType' : 'application/json'});
+			ret = reqUrl.pathname+' is not known. Available view commands are: longest, most and worst';
+	}
+
+	//use ret and jsonify it
+	if (doOutput) {
+		resp.write(JSON.stringify(ret));
+		resp.end();
+	}
 }).listen(config.controlPort);
 
 /**
@@ -330,88 +330,89 @@ var controlServer = require('http').createServer(function(req, resp) {
  *
  */
 var logServer = require('dgram').createSocket('udp4').on('message', function(msg,sender) {
-    //check if we should do the listening
-    //it would probably be better to stop the listening altogether, than simply
-    //returning on a message. i have to figure out how this works, though.
-    //@todo start/stop server
-    if (!config.logListen) { return; }
+	//check if we should do the listening
+	//it would probably be better to stop the listening altogether, than simply
+	//returning on a message. i have to figure out how this works, though.
+	//@todo start/stop server
+	if (!config.logListen) { return; }
 
-    //analyze the query an get the analyzing object
-    var analyze = require('./lib/QueryPrototyper.js').proto(config,msg);
-    outp('['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);
-    
-    //check if we want to store this object in mongo at all based on the minimum duration setting?
-    if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan){
-        return;
-    }
-    
-    //store object in mongo
-    mongoDb.collection(config.logAggregatedCollection,function(error, collection) {
-        if (error) {
-            outp(error.toString(),1);
-            return;
-        }
-        
-        //make sure there is an index on the hash field
-        collection.ensureIndex({hash:1}, {unique: true}, function(indexCreationError, newIndexName){});
-        
-        //also need indexes for better and faster sorting
-        collection.ensureIndex({totaltime:-1}, function(indexCreationError, newIndexName){});
-        collection.ensureIndex({counter:-1}, function(indexCreationError, newIndexName){});
-        collection.ensureIndex({avg:-1}, function(indexCreationError, newIndexName){});
-        
-        //upsert data
-        collection.findAndModify({
-            hash: analyze.hash
-        },{
-            hash: 1
-        },{
-            $set: { hash: analyze.hash, proto: analyze.proto },
-            $inc: { counter: 1, totaltime: analyze.duration }
-        },{
-            upsert: true
-        }, function(err,doc) {
-            if (err) {
-                outp(err.toString(),3);
-                return;
-            }
+	//analyze the query an get the analyzing object
+	var analyze = require('./lib/QueryPrototyper.js').proto(config,msg);
+	outp('['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);
 
-            //calc aggregation
-            //unfortunately, we have to do this. lets wait for:
-            //@see https://jira.mongodb.org/browse/SERVER-458
-            collection.update({
-                _id: doc._id
-            },{
-                '$set': {
-                    avg: doc.totaltime/doc.counter,
-                    max: ((analyze.duration>doc.max || isNaN(doc.max)) ? analyze.duration : doc.max),
-                    min: ((analyze.duration<doc.min || isNaN(doc.min)) ? analyze.duration : doc.min)
-                }
-            },function (err) {
-                if (err) {
-                    outp(err.toString(),3);
-                }
-            });
-        });
-    });
+	//check if we want to store this object in mongo at all based on the minimum duration setting?
+	if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan){
+		return;
+	}
 
-    //log ALL queries - PERFORMANCE KILLER!!!!
-    if (config.logSingleQueries) {
-        var single = new mongoLib.Collection(mongoDb, config.logSingleCollection);
-        single.insert({
-            hash: analyze.hash,
-            executed: new Date(),
-            duration: analyze.duration,
-            query: analyze.query
-        }, function(err) {
-            if (err) {
-                outp(err.toString(),3);
-            }
-        });
-    }
+	//store object in mongo
+	mongoDb.collection(config.logAggregatedCollection,function(error, collection) {
+		if (error) {
+			outp(error.toString(),1);
+			return;
+		}
 
-    //update stats
-    stats.processed++;
+		//make sure there is an index on the hash field
+		collection.ensureIndex({hash:1}, {unique: true}, function(indexCreationError, newIndexName){});
+
+		//also need indexes for better and faster sorting
+		collection.ensureIndex({totaltime:-1}, function(indexCreationError, newIndexName){});
+		collection.ensureIndex({counter:-1}, function(indexCreationError, newIndexName){});
+		collection.ensureIndex({avg:-1}, function(indexCreationError, newIndexName){});
+
+		//upsert data
+		collection.findAndModify({
+			hash: analyze.hash
+		},{
+			hash: 1
+		},{
+			$set: { hash: analyze.hash, proto: analyze.proto },
+			$inc: { counter: 1, totaltime: analyze.duration }
+		},{
+			upsert: true
+		}, function(err,doc) {
+			if (err) {
+				outp(err.toString(),3);
+				return;
+			}
+
+			//calc aggregation
+			//unfortunately, we have to do this. lets wait for:
+			//@see https://jira.mongodb.org/browse/SERVER-458
+			collection.update({
+				_id: doc._id
+			},{
+				'$set': {
+					avg: doc.totaltime/doc.counter,
+					max: ((analyze.duration>doc.max || isNaN(doc.max)) ? analyze.duration : doc.max),
+					min: ((analyze.duration<doc.min || isNaN(doc.min)) ? analyze.duration : doc.min)
+				}
+			},function (err) {
+				if (err) {
+					outp(err.toString(),3);
+				}
+			});
+		});
+	});
+
+	//log ALL queries - PERFORMANCE KILLER!!!!
+	if (config.logSingleQueries) {
+		var single = new mongoLib.Collection(mongoDb, config.logSingleCollection);
+		single.insert({
+			hash: analyze.hash,
+			executed: new Date(),
+			duration: analyze.duration,
+			query: analyze.query,
+			additional: analyze.additionalInfo
+		}, function(err) {
+			if (err) {
+				outp(err.toString(),3);
+			}
+		});
+	}
+
+	//update stats
+	stats.processed++;
 }).on('listening',function() {
-    outp('Log Server started. Listening to UDP @ '+config.logPort,3);
-}).bind(config.logPort);
+		outp('Log Server started. Listening to UDP @ '+config.logPort,3);
+	}).bind(config.logPort);
