@@ -438,11 +438,6 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
             }
         });
     }
-
-    //log ALL SELECT queries that do not use an index - We can end up with a lot of data here, achtung
-    if (config.logNoIndexSelects) {
-    
-    }
     
     //update stats
     stats.processed++;
