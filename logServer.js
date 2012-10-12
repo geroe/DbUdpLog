@@ -54,7 +54,7 @@ var outp = function(msg,lvl) {
 //do the mongo magic
 var mongoLib = require('mongodb');
 var mongoServer = new mongoLib.Server(config.mongoHost,config.mongoPort,{});
-var mongoDb = new mongoLib.Db(config.mongoDb, mongoServer, {});
+var mongoDb = new mongoLib.Db(config.mongoDb, mongoServer, {safe:false});
 
 //check connection
 mongoDb.open(function(error,db) {
@@ -335,10 +335,42 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
     //returning on a message. i have to figure out how this works, though.
     //@todo start/stop server
     if (!config.logListen) { return; }
+    
+    //check what type of message is being sent
+    var convertedMessage = msg.toString().toLowerCase();
+    var messageFormat    = 'raw';
+    
+    if (convertedMessage.match(/^[a-z]+\:(.*)/)) { //if there is a type definition try to parse it out
+        var dummy       = convertedMessage.split(':');
+        messageFormat   = dummy.shift();
+        //messageContent  = dummy.shift();
+        
+        msg = dummy.join(':');
+    }
+    
+    //log message format if neccessary    
+    outp('Message Format: '+messageFormat, 10);
 
-    //analyze the query an get the analyzing object
-    var analyze = require('./lib/QueryPrototyper.js').proto(config,msg);
-    outp('['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);
+        
+    switch(messageFormat){    
+        case 'json':    {
+                            outp('Message: '+msg, 10);
+                            //analyze the query an get the analyzing object
+                            var analyze = require('./lib/QueryPrototyper.js').protoJSON(config, msg);
+                            outp('Message Parsed: '+analyze.duration,10);
+                            
+                            outp('JSON ['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);  
+                            break;
+                        }
+                        
+        //fully backwards compatible if nothing changes in the request string
+        default:        {
+                            //analyze the query an get the analyzing object
+                            var analyze = require('./lib/QueryPrototyper.js').protoRAW(config, msg);
+                            outp('RAW  ['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);                            
+                        }
+    }
+
     
     //check if we want to store this object in mongo at all based on the minimum duration setting?
     if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan){
