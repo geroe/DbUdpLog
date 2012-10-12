@@ -314,15 +314,16 @@ var controlServer = require('http').createServer(function(req, resp) {
 /**
  * The Log Server
  *
- * This is a very basic UDP4 Server that will get a string in that form:
+ * This is a very basic UDP4 Server that will get a string in that form (classic way):
  * duration|query, eg. 0.00675|UPDATE users SET last_login=now() WHERE uid=57;
- *
- * I opted to use this basic pipe syntax in favor of sending a JSON string to keep
- * the overhead as little as possbile.
  *
  * The duration| is actually optional, but the whole thing will become more or less
  * useless if not given. If you just want a counter, than that's ok. It will default
  * duration = 0.
+ *
+ * Also a new way of passing query data is supported, one can now send a full json
+ * object to be parsed by the processor:
+ * json:{sql:"UPDATE users SET last_login=now() WHERE uid=57",duration:0.00675}
  *
  * The above mentioned query will be prototyped and hashed for aggregation. The query
  * will become: UPDATE users SET last_login=now() WHERE uid=?
@@ -338,27 +339,21 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
     
     //check what type of message is being sent
     var convertedMessage = msg.toString().toLowerCase();
-    var messageFormat    = 'raw';
+    var messageFormat    = 'raw'; //presume we get data the old way for full reverse compatibility
     
     if (convertedMessage.match(/^[a-z]+\:(.*)/)) { //if there is a type definition try to parse it out
         var dummy       = convertedMessage.split(':');
         messageFormat   = dummy.shift();
-        //messageContent  = dummy.shift();
-        
         msg = dummy.join(':');
     }
     
     //log message format if neccessary    
     outp('Message Format: '+messageFormat, 10);
-
         
     switch(messageFormat){    
         case 'json':    {
-                            outp('Message: '+msg, 10);
                             //analyze the query an get the analyzing object
                             var analyze = require('./lib/QueryPrototyper.js').protoJSON(config, msg);
-                            outp('Message Parsed: '+analyze.duration,10);
-                            
                             outp('JSON ['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);  
                             break;
                         }
@@ -370,10 +365,9 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
                             outp('RAW  ['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);                            
                         }
     }
-
     
     //check if we want to store this object in mongo at all based on the minimum duration setting?
-    if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan){
+    if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan || analyze.hash == 'json_parse_error'){
         return;
     }
     
@@ -392,13 +386,16 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
         collection.ensureIndex({counter:-1}, function(indexCreationError, newIndexName){});
         collection.ensureIndex({avg:-1}, function(indexCreationError, newIndexName){});
         
+        //to make filtering more fun we need a compound index on additional data
+        collection.ensureIndex({info:1}, function(indexCreationError, newIndexName){});
+        
         //upsert data
         collection.findAndModify({
             hash: analyze.hash
         },{
             hash: 1
         },{
-            $set: { hash: analyze.hash, proto: analyze.proto },
+            $set: { hash: analyze.hash, proto: analyze.proto, info: analyze.additionalInfo },
             $inc: { counter: 1, totaltime: analyze.duration }
         },{
             upsert: true
@@ -442,6 +439,11 @@ var logServer = require('dgram').createSocket('udp4').on('message', function(msg
         });
     }
 
+    //log ALL SELECT queries that do not use an index - We can end up with a lot of data here, achtung
+    if (config.logNoIndexSelects) {
+    
+    }
+    
     //update stats
     stats.processed++;
 }).on('listening',function() {
