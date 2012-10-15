@@ -112,6 +112,24 @@ Here is a PHP block to understand the concept:
 As you can see, errors on the PHP side are silently ignored. It should just send the query if possible.
 I just want logs, but not to jeopardize the application itself :)
 
+You can also send a full-blown json encoded string as the message which enables packing more data into the socket call.
+Here is an example:
+
+    <?php
+    
+        ...
+		$start = microtime(true);
+		mysql_query($query);
+		$end = microtime(true);
+
+		$sock = fsockopen("udp://127.0.0.1", 13306, $errno, $errstr);
+		if ($sock) {
+			fwrite('json:'.json_encode(array('sql'=>$query, 'duration'=>$end-$start), 'additionalInfo'=>array('foo'=>'bar')));
+			fclose($sock);
+		}
+	    ...
+	    
+
 You could also integrate this into some sort of proxy.
 [MySQL Proxy](http://forge.mysql.com/wiki/MySQL_Proxy) for instance.
 This was to intrusive for me, as I normally use a *direct* connection and did not want to deal with compression,

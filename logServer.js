@@ -54,7 +54,7 @@ var outp = function(msg,lvl) {
 //do the mongo magic
 var mongoLib = require('mongodb');
 var mongoServer = new mongoLib.Server(config.mongoHost,config.mongoPort,{});
-var mongoDb = new mongoLib.Db(config.mongoDb, mongoServer, {});
+var mongoDb = new mongoLib.Db(config.mongoDb, mongoServer, {safe:false});
 
 //check connection
 mongoDb.open(function(error,db) {
@@ -314,15 +314,16 @@ var controlServer = require('http').createServer(function(req, resp) {
 /**
  * The Log Server
  *
- * This is a very basic UDP4 Server that will get a string in that form:
+ * This is a very basic UDP4 Server that will get a string in that form (classic way):
  * duration|query, eg. 0.00675|UPDATE users SET last_login=now() WHERE uid=57;
- *
- * I opted to use this basic pipe syntax in favor of sending a JSON string to keep
- * the overhead as little as possbile.
  *
  * The duration| is actually optional, but the whole thing will become more or less
  * useless if not given. If you just want a counter, than that's ok. It will default
  * duration = 0.
+ *
+ * Also a new way of passing query data is supported, one can now send a full json
+ * object to be parsed by the processor:
+ * json:{sql:"UPDATE users SET last_login=now() WHERE uid=57",duration:0.00675}
  *
  * The above mentioned query will be prototyped and hashed for aggregation. The query
  * will become: UPDATE users SET last_login=now() WHERE uid=?
@@ -330,89 +331,116 @@ var controlServer = require('http').createServer(function(req, resp) {
  *
  */
 var logServer = require('dgram').createSocket('udp4').on('message', function(msg,sender) {
-	//check if we should do the listening
-	//it would probably be better to stop the listening altogether, than simply
-	//returning on a message. i have to figure out how this works, though.
-	//@todo start/stop server
-	if (!config.logListen) { return; }
+    //check if we should do the listening
+    //it would probably be better to stop the listening altogether, than simply
+    //returning on a message. i have to figure out how this works, though.
+    //@todo start/stop server
+    if (!config.logListen) { return; }
+    
+    //check what type of message is being sent
+    var convertedMessage = msg.toString().toLowerCase();
+    var messageFormat    = 'raw'; //presume we get data the old way for full reverse compatibility
+    
+    if (convertedMessage.match(/^[a-z]+\:(.*)/)) { //if there is a type definition try to parse it out
+        var dummy       = convertedMessage.split(':');
+        messageFormat   = dummy.shift();
+        msg = dummy.join(':');
+    }
+    
+    //log message format if neccessary    
+    outp('Message Format: '+messageFormat, 10);
+        
+    switch(messageFormat){    
+        case 'json':    {
+                            //analyze the query an get the analyzing object
+                            var analyze = require('./lib/QueryPrototyper.js').protoJSON(config, msg);
+                            outp('JSON ['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);  
+                            break;
+                        }
+                        
+        //fully backwards compatible if nothing changes in the request string
+        default:        {
+                            //analyze the query an get the analyzing object
+                            var analyze = require('./lib/QueryPrototyper.js').protoRAW(config, msg);
+                            outp('RAW  ['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);                            
+                        }
+    }
+    
+    //check if we want to store this object in mongo at all based on the minimum duration setting?
+    if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan || analyze.hash == 'json_parse_error'){
+        return;
+    }
+    
+    //store object in mongo
+    mongoDb.collection(config.logAggregatedCollection,function(error, collection) {
+        if (error) {
+            outp(error.toString(),1);
+            return;
+        }
+        
+        //make sure there is an index on the hash field
+        collection.ensureIndex({hash:1}, {unique: true}, function(indexCreationError, newIndexName){});
+        
+        //also need indexes for better and faster sorting
+        collection.ensureIndex({totaltime:-1}, function(indexCreationError, newIndexName){});
+        collection.ensureIndex({counter:-1}, function(indexCreationError, newIndexName){});
+        collection.ensureIndex({avg:-1}, function(indexCreationError, newIndexName){});
+        
+        //to make filtering more fun we need a compound index on additional data
+        collection.ensureIndex({info:1}, function(indexCreationError, newIndexName){});
+        
+        //upsert data
+        collection.findAndModify({
+            hash: analyze.hash
+        },{
+            hash: 1
+        },{
+            $set: { hash: analyze.hash, proto: analyze.proto, info: analyze.additionalInfo },
+            $inc: { counter: 1, totaltime: analyze.duration }
+        },{
+            upsert: true
+        }, function(err,doc) {
+            if (err) {
+                outp(err.toString(),3);
+                return;
+            }
 
-	//analyze the query an get the analyzing object
-	var analyze = require('./lib/QueryPrototyper.js').proto(config,msg);
-	outp('['+sender.address+'] ['+analyze.duration+'s] '+analyze.hash+' // '+analyze.proto,10);
+            //calc aggregation
+            //unfortunately, we have to do this. lets wait for:
+            //@see https://jira.mongodb.org/browse/SERVER-458
+            collection.update({
+                _id: doc._id
+            },{
+                '$set': {
+                    avg: doc.totaltime/doc.counter,
+                    max: ((analyze.duration>doc.max || isNaN(doc.max)) ? analyze.duration : doc.max),
+                    min: ((analyze.duration<doc.min || isNaN(doc.min)) ? analyze.duration : doc.min)
+                }
+            },function (err) {
+                if (err) {
+                    outp(err.toString(),3);
+                }
+            });
+        });
+    });
 
-	//check if we want to store this object in mongo at all based on the minimum duration setting?
-	if(analyze.duration && analyze.duration < config.logQueriesWithDurationLongerThan){
-		return;
-	}
-
-	//store object in mongo
-	mongoDb.collection(config.logAggregatedCollection,function(error, collection) {
-		if (error) {
-			outp(error.toString(),1);
-			return;
-		}
-
-		//make sure there is an index on the hash field
-		collection.ensureIndex({hash:1}, {unique: true}, function(indexCreationError, newIndexName){});
-
-		//also need indexes for better and faster sorting
-		collection.ensureIndex({totaltime:-1}, function(indexCreationError, newIndexName){});
-		collection.ensureIndex({counter:-1}, function(indexCreationError, newIndexName){});
-		collection.ensureIndex({avg:-1}, function(indexCreationError, newIndexName){});
-
-		//upsert data
-		collection.findAndModify({
-			hash: analyze.hash
-		},{
-			hash: 1
-		},{
-			$set: { hash: analyze.hash, proto: analyze.proto },
-			$inc: { counter: 1, totaltime: analyze.duration }
-		},{
-			upsert: true
-		}, function(err,doc) {
-			if (err) {
-				outp(err.toString(),3);
-				return;
-			}
-
-			//calc aggregation
-			//unfortunately, we have to do this. lets wait for:
-			//@see https://jira.mongodb.org/browse/SERVER-458
-			collection.update({
-				_id: doc._id
-			},{
-				'$set': {
-					avg: doc.totaltime/doc.counter,
-					max: ((analyze.duration>doc.max || isNaN(doc.max)) ? analyze.duration : doc.max),
-					min: ((analyze.duration<doc.min || isNaN(doc.min)) ? analyze.duration : doc.min)
-				}
-			},function (err) {
-				if (err) {
-					outp(err.toString(),3);
-				}
-			});
-		});
-	});
-
-	//log ALL queries - PERFORMANCE KILLER!!!!
-	if (config.logSingleQueries) {
-		var single = new mongoLib.Collection(mongoDb, config.logSingleCollection);
-		single.insert({
-			hash: analyze.hash,
-			executed: new Date(),
-			duration: analyze.duration,
-			query: analyze.query,
-			additional: analyze.additionalInfo
-		}, function(err) {
-			if (err) {
-				outp(err.toString(),3);
-			}
-		});
-	}
-
-	//update stats
-	stats.processed++;
+    //log ALL queries - PERFORMANCE KILLER!!!!
+    if (config.logSingleQueries) {
+        var single = new mongoLib.Collection(mongoDb, config.logSingleCollection);
+        single.insert({
+            hash: analyze.hash,
+            executed: new Date(),
+            duration: analyze.duration,
+            query: analyze.query
+        }, function(err) {
+            if (err) {
+                outp(err.toString(),3);
+            }
+        });
+    }
+    
+    //update stats
+    stats.processed++;
 }).on('listening',function() {
 		outp('Log Server started. Listening to UDP @ '+config.logPort,3);
 	}).bind(config.logPort);
